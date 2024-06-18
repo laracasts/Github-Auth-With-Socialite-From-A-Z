@@ -7,33 +7,41 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
+use Laravel\Socialite\Contracts\User as SocialiteUser;
 use Laravel\Socialite\Facades\Socialite;
 
 class RegisteredUserViaGithubController extends Controller
 {
-    public function create()
+    public function create(): RedirectResponse
     {
         return Socialite::driver('github')->redirect();
     }
 
-    public function store(Register $register)
+    public function store(Register $register): RedirectResponse
     {
         $githubUser = Socialite::driver('github')->user();
 
+        // If the user is signed in, associate the GitHub
+        // token with their account.
         if ($user = Auth::user()) {
             return $this->login($user, $githubUser);
         }
 
+        // If, upon registering, the GitHub token already exists in our db,
+        // associate those credentials with that account.
         if ($user = User::where(['github_id' => $githubUser->getId()])->first()) {
             return $this->login($user, $githubUser);
         }
 
+        // If we already have an account for that GitHub email address, ask
+        // the user to login and try again.
         if (User::where(['email' => $githubUser->getEmail(), 'github_id' => null])->exists()) {
             return redirect(route('register'))->withErrors([
-                'email' => 'An existing account for this email already exists. Please login and visit your profile settings to add support for Github authentication.',
+                'email' => 'An account for this email already exists. Please login and visit your settings page to add Github authentication.',
             ]);
         }
 
+        // Otherwise, register them!
         return $register->handle([
             'name' => $githubUser->getName(),
             'email' => $githubUser->getEmail(),
@@ -42,7 +50,7 @@ class RegisteredUserViaGithubController extends Controller
         ]);
     }
 
-    public function login(User $user, \Laravel\Socialite\Contracts\User $githubUser): RedirectResponse
+    public function login(User $user, SocialiteUser $githubUser): RedirectResponse
     {
         $user->update([
             'github_id' => $githubUser->getId(),

@@ -21,7 +21,6 @@ class Register
         ]);
 
         if ($validator->fails()) {
-            dump($validator->errors());
             return redirect(route('register'))->withErrors($validator);
         }
 
